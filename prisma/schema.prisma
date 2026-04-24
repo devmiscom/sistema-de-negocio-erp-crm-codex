@@ -1,0 +1,244 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleType {
+  SUPER_ADMIN
+  ADMIN
+  EMPLOYEE
+  CUSTOM
+}
+
+enum LeadStatus {
+  NEW
+  QUALIFIED
+  NEGOTIATION
+  WON
+  LOST
+}
+
+enum OrderStatus {
+  OPEN
+  PAID
+  CANCELLED
+}
+
+enum PurchaseStatus {
+  REQUESTED
+  APPROVED
+  RECEIVED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  ISSUED
+  CANCELLED
+}
+
+enum StockMovementType {
+  IN
+  OUT
+  ADJUSTMENT
+}
+
+model User {
+  id             String           @id @default(cuid())
+  name           String
+  email          String           @unique
+  passwordHash   String
+  isActive       Boolean          @default(true)
+  roleId         String
+  role           Role             @relation(fields: [roleId], references: [id])
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  uploads        Attachment[]
+  salesOrders    SalesOrder[]
+  userPermission UserPermission[]
+}
+
+model Role {
+  id              String           @id @default(cuid())
+  name            String           @unique
+  type            RoleType
+  isSystem        Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  users           User[]
+  rolePermissions RolePermission[]
+}
+
+model Permission {
+  id              String           @id @default(cuid())
+  key             String           @unique
+  label           String
+  module          String
+  createdAt       DateTime         @default(now())
+  rolePermissions RolePermission[]
+  userPermission  UserPermission[]
+}
+
+model RolePermission {
+  id           String     @id @default(cuid())
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+}
+
+model UserPermission {
+  id           String     @id @default(cuid())
+  userId       String
+  permissionId String
+  allowed      Boolean    @default(true)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, permissionId])
+}
+
+model SystemSetting {
+  id             Int      @id @default(1)
+  systemName     String   @default("Sistema ERP CRM")
+  primaryColor   String   @default("#0057B8")
+  secondaryColor String   @default("#0A2540")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model UploadSetting {
+  id                Int      @id @default(1)
+  allowedExtensions String   @db.Text
+  maxFileSizeMb     Int      @default(20)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Attachment {
+  id          String   @id @default(cuid())
+  module      String
+  entityType  String
+  entityId    String
+  fileName    String
+  storedName  String
+  extension   String
+  mimeType    String
+  sizeBytes   Int
+  url         String
+  uploadedBy  String
+  uploadedAt  DateTime @default(now())
+  uploader    User     @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
+}
+
+model Client {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  company   String?
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  contacts  Contact[]
+}
+
+model Lead {
+  id        String     @id @default(cuid())
+  name      String
+  source    String?
+  status    LeadStatus @default(NEW)
+  email     String?
+  phone     String?
+  notes     String?    @db.Text
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  clientId  String?
+  client    Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Product {
+  id             String          @id @default(cuid())
+  sku            String          @unique
+  name           String
+  price          Decimal         @db.Decimal(12, 2)
+  stockQty       Int             @default(0)
+  minStockQty    Int             @default(0)
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  salesItems     SalesItem[]
+  stockMovements StockMovement[]
+}
+
+model SalesOrder {
+  id           String      @id @default(cuid())
+  orderNumber  String      @unique
+  customerName String
+  status       OrderStatus @default(OPEN)
+  total        Decimal     @db.Decimal(12, 2)
+  createdById  String
+  createdBy    User        @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  items        SalesItem[]
+}
+
+model SalesItem {
+  id          String      @id @default(cuid())
+  orderId     String
+  order       SalesOrder  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId   String?
+  product     Product?    @relation(fields: [productId], references: [id], onDelete: SetNull)
+  description String
+  quantity    Int
+  unitPrice   Decimal     @db.Decimal(12, 2)
+  total       Decimal     @db.Decimal(12, 2)
+  createdAt   DateTime    @default(now())
+}
+
+model PurchaseOrder {
+  id          String         @id @default(cuid())
+  number      String         @unique
+  supplier    String
+  status      PurchaseStatus @default(REQUESTED)
+  total       Decimal        @db.Decimal(12, 2)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model StockMovement {
+  id          String            @id @default(cuid())
+  productId   String
+  product     Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  type        StockMovementType
+  quantity    Int
+  reason      String
+  reference   String?
+  createdAt   DateTime          @default(now())
+}
+
+model Invoice {
+  id           String        @id @default(cuid())
+  number       String        @unique
+  customerName String
+  issueDate    DateTime
+  total        Decimal       @db.Decimal(12, 2)
+  status       InvoiceStatus @default(ISSUED)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
