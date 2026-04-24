@@ -1,8 +1,10 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { verifyPassword } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { createSessionToken, SESSION_COOKIE_NAME } from "@/lib/session-token";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   const form = await request.formData();
@@ -28,7 +30,8 @@ export async function POST(request: Request) {
   }
 
   const token = await createSessionToken({ userId: user.id, email: user.email });
-  cookies().set({
+  const response = NextResponse.redirect(new URL("/dashboard", request.url));
+  response.cookies.set({
     name: SESSION_COOKIE_NAME,
     value: token,
     httpOnly: true,
@@ -38,5 +41,5 @@ export async function POST(request: Request) {
     maxAge: 60 * 60 * 8
   });
 
-  return NextResponse.redirect(new URL("/dashboard", request.url));
+  return response;
 }
